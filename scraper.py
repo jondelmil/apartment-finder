@@ -1,7 +1,7 @@
 from craigslist import CraigslistHousing
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, Float
 from sqlalchemy.orm import sessionmaker
 from dateutil.parser import parse
 from util import post_listing_to_slack, find_points_of_interest
@@ -12,6 +12,7 @@ import settings
 engine = create_engine('sqlite:///listings.db', echo=False)
 
 Base = declarative_base()
+
 
 class Listing(Base):
     """
@@ -30,21 +31,20 @@ class Listing(Base):
     price = Column(Float)
     location = Column(String)
     cl_id = Column(Integer, unique=True)
-    area = Column(String)
-    bart_stop = Column(String)
 
 Base.metadata.create_all(engine)
 
 Session = sessionmaker(bind=engine)
 session = Session()
 
-def scrape_area(area):
+
+def scrape_area():
     """
     Scrapes craigslist for a certain geographic area, and finds the latest listings.
     :param area:
     :return: A list of results.
     """
-    cl_h = CraigslistHousing(site=settings.CRAIGSLIST_SITE, area=area, category=settings.CRAIGSLIST_HOUSING_SECTION,
+    cl_h = CraigslistHousing(site=settings.CRAIGSLIST_SITE, category=settings.CRAIGSLIST_HOUSING_SECTION,
                              filters={'max_price': settings.MAX_PRICE, "min_price": settings.MIN_PRICE})
 
     results = []
@@ -74,9 +74,6 @@ def scrape_area(area):
                 # Annotate the result with information about the area it's in and points of interest near it.
                 geo_data = find_points_of_interest(result["geotag"], result["where"])
                 result.update(geo_data)
-            else:
-                result["area"] = ""
-                result["bart"] = ""
 
             # Try parsing the price.
             price = 0
@@ -94,20 +91,18 @@ def scrape_area(area):
                 name=result["name"],
                 price=price,
                 location=result["where"],
-                cl_id=result["id"],
-                area=result["area"],
-                bart_stop=result["bart"]
+                cl_id=result["id"]
             )
 
             # Save the listing so we don't grab it again.
             session.add(listing)
             session.commit()
 
-            # Return the result if it's near a bart station, or if it is in an area we defined.
-            if len(result["bart"]) > 0 or len(result["area"]) > 0:
-                results.append(result)
+            # Return the result if it's in
+            results.append(result)
 
     return results
+
 
 def do_scrape():
     """
@@ -119,8 +114,7 @@ def do_scrape():
 
     # Get all the results from craigslist.
     all_results = []
-    for area in settings.AREAS:
-        all_results += scrape_area(area)
+    all_results += scrape_area()
 
     print("{}: Got {} results".format(time.ctime(), len(all_results)))
 

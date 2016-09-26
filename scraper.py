@@ -31,6 +31,7 @@ class Listing(Base):
     price = Column(Float)
     location = Column(String)
     cl_id = Column(Integer, unique=True)
+    area = Column(String)
 
 Base.metadata.create_all(engine)
 
@@ -74,6 +75,8 @@ def scrape_area():
                 # Annotate the result with information about the area it's in and points of interest near it.
                 geo_data = find_points_of_interest(result["geotag"], result["where"])
                 result.update(geo_data)
+            else:
+                result["area"] = ""
 
             # Try parsing the price.
             price = 0
@@ -91,7 +94,8 @@ def scrape_area():
                 name=result["name"],
                 price=price,
                 location=result["where"],
-                cl_id=result["id"]
+                cl_id=result["id"],
+                area=result["area"]
             )
 
             # Save the listing so we don't grab it again.
@@ -99,7 +103,8 @@ def scrape_area():
             session.commit()
 
             # Return the result if it's in
-            results.append(result)
+            if len(result["area"]) > 0:
+                results.append(result)
 
     return results
 
